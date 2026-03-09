@@ -1,0 +1,13 @@
+{
+  "name": "UDHG Risk Management",
+  "short_name": "UDHG Risk",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f2f2f7",
+  "theme_color": "#8B2332",
+  "description": "UDHG internal risk management tools",
+  "icons": [
+    { "src": "https://via.placeholder.com/192/8B2332/ffffff?text=RM", "sizes": "192x192", "type": "image/png" },
+    { "src": "https://via.placeholder.com/512/8B2332/ffffff?text=RM", "sizes": "512x512", "type": "image/png" }
+  ]
+}
