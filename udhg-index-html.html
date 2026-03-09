@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <meta name="theme-color" content="#8B2332"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="UDHG Risk"/>
+  <link rel="manifest" href="./manifest.json"/>
+  <title>UDHG Risk Management</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#f2f2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+    #root{max-width:480px;margin:0 auto;min-height:100vh}
+    select,input,textarea{font-family:inherit}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect}=React;
+const RED="#8B2332";
+
+const WC_RATES={AZ:{5102:3.31},CO:{5102:3.29},CT:{5102:4.61},FL:{5102:5.33},ME:{5102:2.78},MA:{5102:4.56},MD:{5102:4.09},MI:{5102:2.13,5146:2.14},NJ:{5103:6.28},NY:{5102:11.17},PA:{658:6.43},RI:{5102:3.54},TN:{5102:2.58,5146:1.91},TX:{5102:2.15}};
+const WC_SUPPLY={CT:3.48,MA:2.76,ME:3.04,RI:3.82};
+const LDF={AL:0.0706,AR:0.2214,AZ:0.2737,CA:0.0832,CO:0.0549,CT:0.0832,FL:0.2124,GA:0.054,HI:0.202,IA:0.2561,ID:0.0549,IL:0.0521,IN:0.0548,KS:0.0545,KY:0.0832,LA:0.0506,MA:0,MD:0.0548,ME:0,MI:0.0833,MN:0.2094,MO:0.0832,MS:0.0835,MT:0.0832,NC:0.2541,NE:0.1386,NH:0.0831,NJ:0.0829,NM:0.0832,NV:0.0548,NY:0.0832,OK:0.0832,OR:0.1658,PA:0.1931,RI:0.0548,SC:0.0832,SD:0.0832,TN:0.0832,TX:0.08,UT:0.0548,VA:0.0832,WV:0.052};
+const EMR={AL:0.95,AR:0.95,AZ:0.95,CA:0.95,CO:0.95,CT:0.95,FL:0.95,GA:0.95,HI:0.95,IA:0.95,ID:0.95,IL:0.95,IN:0.95,KS:0.95,KY:0.95,LA:0.95,MA:1.01,MD:0.95,ME:0.95,MI:0.65,MN:0.95,MO:0.95,MS:0.95,MT:0.95,NC:0.95,NE:0.95,NH:0.95,NJ:1.115,NM:0.95,NV:0.95,NY:1.87,OK:0.95,OR:0.95,PA:1.143,RI:0.95,SC:0.95,SD:0.95,TN:0.95,TX:0.95,UT:0.95,VA:0.95,WV:0.95};
+const CC_LABELS={5102:"Installation",5103:"Installation",5146:"Furniture Install",658:"Metal Erection Install",8235:"Supply Only"};
+const GL_RATE=0.1506, UMB_RATE=0.36691;
+
+const SCOPE_EXPLAINERS={
+  none:{
+    title:"Delivery / Supply Only",
+    icon:"🚚",
+    text:"This scope covers delivery of materials only. No installation or on-site labor is performed by UDHG or any subcontractor. If the GC's crew or another party is doing the install, that is outside our scope and this is the correct selection."
+  },
+  self:{
+    title:"Self-Performed Installation",
+    icon:"🔧",
+    text:"This means UDHG's own crews are performing the installation. These are employees on our payroll. WC rates are calculated based on the applicable state rate for our class code. Choose this only if UDHG direct employees are doing the physical install work."
+  },
+  subcontracted:{
+    title:"Subcontracted Installation",
+    icon:"🤝",
+    text:"This means a subcontractor we have a written agreement with is performing the installation. They carry their own insurance — we do not supply coverage for them.\n\nIMPORTANT: The subcontractor must complete their own WRAP enrollment separately. If the wrap program sponsor (GC or owner) is not already aware, we are required to notify them. The subcontractor will receive their own enrollment documentation request."
+  }
+};
+const STATES=["AL","AR","AZ","CA","CO","CT","FL","GA","HI","IA","ID","IL","IN","KS","KY","LA","MA","MD","ME","MI","MN","MO","MS","MT","NC","NE","NH","NJ","NM","NV","NY","OK","OR","PA","RI","SC","SD","TN","TX","UT","VA","WV"];
+const BOND_TYPES=[{v:"bid",l:"Bid Bond"},{v:"performance",l:"Performance Bond"},{v:"payment",l:"Payment Bond"},{v:"perf_payment",l:"Performance + Payment Bond"},{v:"maintenance",l:"Maintenance Bond"},{v:"supply",l:"Supply Bond"},{v:"other",l:"Other"}];
+const PRINCIPALS=[{v:"UDHG",l:"Unified Door and Hardware Group (UDHG)"},{v:"FBM",l:"Foundation Building Materials (FBM)"},{v:"other",l:"Other / Specify"}];
+const SAMPLE_PROGRAMS=[
+  {id:"WU-2026-001",name:"Riverside Development Phase II",type:"OCIP",status:"enrolled",compliance:100,cv:2850000,savings:99750,due:"2026-03-15",contact:"Sarah Chen"},
+  {id:"WU-2026-002",name:"Metro Office Complex",type:"CCIP",status:"pending",compliance:15,cv:1650000,savings:69300,due:"2026-03-01",contact:"Mike Rodriguez"},
+  {id:"WU-2026-003",name:"Industrial Park Expansion",type:"OCIP",status:"active",compliance:65,cv:4200000,savings:159600,due:"2026-04-10",contact:"Jennifer Walsh"},
+  {id:"WU-2026-004",name:"Healthcare Campus",type:"OCIP",status:"enrolled",compliance:76,cv:3100000,savings:124000,due:"2026-03-20",contact:"David Kumar"},
+];
+
+const parseNum=s=>parseFloat((s||"").toString().replace(/,/g,""))||0;
+const fmtMoney=n=>isNaN(n)?"$0":"$"+Math.round(n).toLocaleString();
+const fmtInput=s=>{const p=s.replace(/[^0-9.]/g,"").split(".");p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,",");return p.join(".");};
+const compColor=s=>s>=80?"#27ae60":s>=60?"#f39c12":"#dc3545";
+
+const inp={width:"100%",padding:"10px 12px",border:"1px solid #ddd",borderRadius:6,fontSize:14,outline:"none",boxSizing:"border-box",background:"white"};
+
+function Card({title,children,accent}){
+  return(
+    <div style={{background:"white",borderRadius:10,padding:14,marginBottom:12,boxShadow:"0 2px 8px rgba(0,0,0,0.07)",borderTop:`3px solid ${accent||RED}`}}>
+      {title&&<div style={{fontWeight:700,color:RED,fontSize:12,textTransform:"uppercase",letterSpacing:.7,borderBottom:"1px solid #eee",paddingBottom:8,marginBottom:12}}>{title}</div>}
+      {children}
+    </div>
+  );
+}
+function Field({label,hint,children}){
+  return(
+    <div style={{marginBottom:13}}>
+      <div style={{fontSize:13,fontWeight:500,color:"#444",marginBottom:5}}>{label}</div>
+      {children}
+      {hint&&<div style={{fontSize:11,color:"#999",marginTop:4}}>{hint}</div>}
+    </div>
+  );
+}
+function InfoBox({children,warn,success}){
+  const bg=success?"#d4edda":warn?"#fff3cd":"#e8f4f8";
+  const border=success?"#28a745":warn?"#ffc107":"#17a2b8";
+  return <div style={{background:bg,borderLeft:`4px solid ${border}`,borderRadius:6,padding:"9px 12px",marginBottom:12,fontSize:13}}>{children}</div>;
+}
+function Tag({label}){
+  return <span style={{background:RED,color:"white",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:4}}>{label}</span>;
+}
+
+// ── LOCK SCREEN ────────────────────────────────────────────────────
+function Lock({onUnlock}){
+  const [pw,setPw]=useState("");
+  const [err,setErr]=useState(false);
+  const [show,setShow]=useState(false);
+  const check=()=>{
+    if(pw==="UDHG2026!"){onUnlock();}
+    else{setErr(true);setPw("");setTimeout(()=>setErr(false),2000);}
+  };
+  return(
+    <div style={{minHeight:"100vh",background:RED,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{color:"white",fontWeight:800,fontSize:18,letterSpacing:1,marginBottom:4,textAlign:"center"}}>UNIFIED DOOR & HARDWARE GROUP</div>
+      <div style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginBottom:36,letterSpacing:.5}}>Risk Management Portal — Internal Use Only</div>
+      <div style={{background:"white",borderRadius:14,padding:"28px 24px",width:"100%",maxWidth:340,boxShadow:"0 8px 32px rgba(0,0,0,0.25)"}}>
+        <div style={{fontWeight:700,fontSize:15,color:RED,marginBottom:6,textAlign:"center"}}>Enter Passcode</div>
+        <div style={{fontSize:12,color:"#999",textAlign:"center",marginBottom:20}}>Restricted to authorized UDHG personnel.</div>
+        <div style={{position:"relative",marginBottom:14}}>
+          <input style={{...inp,paddingRight:44,letterSpacing:pw?2:0,fontSize:15,borderColor:err?"#dc3545":"#ddd"}}
+            type={show?"text":"password"} value={pw}
+            onChange={e=>{setPw(e.target.value);setErr(false);}}
+            onKeyDown={e=>e.key==="Enter"&&check()}
+            placeholder="Password" autoFocus/>
+          <button onClick={()=>setShow(s=>!s)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#aaa",fontSize:16,padding:4}}>{show?"🙈":"👁"}</button>
+        </div>
+        {err&&<div style={{color:"#dc3545",fontSize:12,textAlign:"center",marginBottom:10,fontWeight:600}}>Incorrect password. Try again.</div>}
+        <button onClick={check} style={{width:"100%",background:RED,color:"white",border:"none",borderRadius:8,padding:"12px",fontSize:15,fontWeight:700,cursor:"pointer"}}>Unlock</button>
+      </div>
+      <div style={{color:"rgba(255,255,255,0.4)",fontSize:11,marginTop:28,textAlign:"center"}}>Questions? Contact wrap.enrollment@myfbm.com</div>
+    </div>
+  );
+}
+
+// ── CALCULATOR ─────────────────────────────────────────────────────
+function Calculator(){
+  const [state,setState]=useState("");
+  const [cv,setCv]=useState("");
+  const [scope,setScope]=useState("none");
+  const [payroll,setPayroll]=useState("");
+  const [cc,setCc]=useState("");
+  const [gcName,setGcName]=useState("");
+  const [proj,setProj]=useState("");
+  const [recipientEmail,setRecipientEmail]=useState("");
+  const [subName,setSubName]=useState("");
+  const [subContact,setSubContact]=useState("");
+  const [subEmail,setSubEmail]=useState("");
+  const [showExplainer,setShowExplainer]=useState(false);
+
+  const installCodes=state?WC_RATES[state]||{}:{};
+  const supplyRate=state?WC_SUPPLY[state]:null;
+  const codes=[...Object.keys(installCodes).map(k=>({code:k,label:CC_LABELS[k]||"Installation"})),...(supplyRate?[{code:"8235",label:"Supply Only"}]:[])];
+  useEffect(()=>{if(codes.length>0)setCc(codes[0].code);else setCc("");},[state]);
+
+  const contractVal=parseNum(cv);
+  const payrollVal=parseNum(payroll);
+  const gl=Math.round((contractVal/1000)*GL_RATE);
+  const umb=Math.round((contractVal/1000)*UMB_RATE);
+  let wc=0,baseRate=null,emrVal=null,ldfVal=null,effRate=null,hasRates=false;
+  if(scope==="self"&&state){
+    baseRate=cc==="8235"?(supplyRate||null):(installCodes[cc]||null);
+    if(baseRate){hasRates=true;ldfVal=LDF[state]||0;emrVal=EMR[state]||1;effRate=baseRate*emrVal*(1-ldfVal);wc=Math.round((payrollVal/100)*effRate);}
+  }
+  const total=wc+gl+umb;
+  const noRates=scope==="self"&&state&&!hasRates&&codes.length===0;
+
+  const buildMailto=()=>{
+    const to=recipientEmail||"";
+    const subj=`Insurance Cost Calculation — ${proj||"Project"} (${state||"TBD"})`;
+
+    // Calculation breakdown lines
+    const glUnits=(contractVal/1000).toFixed(2);
+    const glLine=`  Contract Value ($${contractVal.toLocaleString()}) ÷ 1,000 = ${glUnits} units\n  × GL Rate (${GL_RATE}) = ${fmtMoney(gl)}`;
+    const umbLine=`  Contract Value ($${contractVal.toLocaleString()}) ÷ 1,000 = ${glUnits} units\n  × Umbrella Rate (${UMB_RATE}) = ${fmtMoney(umb)}`;
+    let wcLine="  Not applicable — delivery/supply scope only, no on-site labor";
+    if(scope==="subcontracted") wcLine=`  Subcontracted installation — WC belongs to sub\n  Subcontractor: ${subName||"[Not Provided]"}\n  Contact: ${subContact||"[Not Provided]"} ${subEmail?`(${subEmail})`:""}\n  Note: Subcontractor must complete their own WRAP enrollment.`;
+    if(scope==="self"&&hasRates) wcLine=`  Payroll ($${payrollVal.toLocaleString()}) ÷ 100 = ${(payrollVal/100).toFixed(2)} units\n  Base WC Rate (${cc}/${state}): $${baseRate.toFixed(3)} per $100\n  × EMR (${emrVal.toFixed(2)}) = ${(baseRate*emrVal).toFixed(4)}\n  × LDF Credit (${ldfVal>0?(ldfVal*100).toFixed(2)+"%":"N/A"}) = Effective Rate ${effRate.toFixed(4)}\n  Payroll units × Effective Rate = ${fmtMoney(wc)}`;
+    if(scope==="self"&&!hasRates) wcLine=`  No WC rates on file for ${state} — contact wrap.enrollment@myfbm.com`;
+
+    const body=`Insurance Cost Calculation
+Generated by UDHG Risk Management App
+======================================
+${gcName?`GC / Customer: ${gcName}\n`:""}Project: ${proj||"[Not Provided]"}
+State: ${state||"[Not Provided]"}
+Contract Value: $${contractVal.toLocaleString()}
+Labor Scope: ${scope==="none"?"Delivery/Supply Only":scope==="subcontracted"?"Subcontracted":"Self-Performed Crews"}
+${scope==="self"?`Estimated Payroll: $${payrollVal.toLocaleString()}\nWC Class Code: ${cc}\n`:""}
+--------------------------------------
+RESULTS
+--------------------------------------
+Workers' Comp (WC):   ${fmtMoney(wc)}
+General Liability:    ${fmtMoney(gl)}
+Umbrella / Excess:    ${fmtMoney(umb)}
+                      ──────────
+TOTAL DEDUCTION:      ${fmtMoney(total)}
+
+--------------------------------------
+HOW THIS WAS CALCULATED
+--------------------------------------
+General Liability (GL):
+${glLine}
+
+Umbrella / Excess:
+${umbLine}
+
+Workers' Compensation (WC):
+${wcLine}
+
+--------------------------------------
+Rates source: 2025-26 WC Policy Endorsements & Rating Pages
+GL Rate: $${GL_RATE} per $1,000 contract value
+Umbrella Rate: $${UMB_RATE} per $1,000 contract value
+This calculation is for bid estimation purposes only.`;
+
+    return `mailto:${to}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+  };
+
+  return(
+    <div style={{padding:14}}>
+      <InfoBox><strong>Internal Use Only.</strong> No data is stored or transmitted. All calculations run on your device.</InfoBox>
+      <Card title="GC / Project">
+        <Field label="GC / Customer Name"><input style={inp} value={gcName} onChange={e=>setGcName(e.target.value)} placeholder="e.g., ABC Construction"/></Field>
+        <Field label="Project Name"><input style={inp} value={proj} onChange={e=>setProj(e.target.value)} placeholder="e.g., Downtown Office Tower"/></Field>
+      </Card>
+      <Card title="Project Details">
+        <Field label="Project State">
+          <select style={inp} value={state} onChange={e=>setState(e.target.value)}>
+            <option value="">Select State...</option>
+            {STATES.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Contract Value ($)" hint="Total sell price for the scope">
+          <input style={inp} value={cv} onChange={e=>setCv(fmtInput(e.target.value))} placeholder="e.g., 500,000"/>
+        </Field>
+        <Field label="Labor Scope">
+          <select style={inp} value={scope} onChange={e=>{setScope(e.target.value);setPayroll("");setShowExplainer(true);}}>
+            <option value="none">Delivery / Supply Only</option>
+            <option value="self">Self-Performed Installation</option>
+            <option value="subcontracted">Subcontracted Installation</option>
+          </select>
+        </Field>
+
+        {/* Explainer bubble */}
+        {showExplainer && SCOPE_EXPLAINERS[scope] && (()=>{
+          const ex=SCOPE_EXPLAINERS[scope];
+          const bg=scope==="subcontracted"?"#fff3cd":scope==="self"?"#e8f4f8":"#f0f9f0";
+          const border=scope==="subcontracted"?"#ffc107":scope==="self"?"#17a2b8":"#27ae60";
+          return(
+            <div style={{background:bg,border:`1px solid ${border}`,borderRadius:8,padding:"12px 14px",marginBottom:12,position:"relative"}}>
+              <button onClick={()=>setShowExplainer(false)} style={{position:"absolute",top:8,right:10,background:"none",border:"none",cursor:"pointer",fontSize:16,color:"#aaa",lineHeight:1}}>✕</button>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{ex.icon} {ex.title}</div>
+              <div style={{fontSize:12,color:"#444",lineHeight:1.6,whiteSpace:"pre-line"}}>{ex.text}</div>
+            </div>
+          );
+        })()}
+
+        {/* Tap to re-open explainer */}
+        {!showExplainer&&(
+          <button onClick={()=>setShowExplainer(true)} style={{background:"none",border:"none",color:"#17a2b8",fontSize:12,cursor:"pointer",padding:"0 0 10px",display:"flex",alignItems:"center",gap:5}}>
+            <span style={{fontSize:14}}>ℹ️</span> What does this scope mean?
+          </button>
+        )}
+
+        {scope==="self"&&codes.length>0&&(
+          <Field label="WC Class Code">
+            <select style={inp} value={cc} onChange={e=>setCc(e.target.value)}>
+              {codes.map(c=><option key={c.code} value={c.code}>{c.code} — {c.label}</option>)}
+            </select>
+          </Field>
+        )}
+        {scope==="self"&&<Field label="Estimated Self-Performed Payroll ($)" hint="Use labor COST (payroll), not labor sell."><input style={inp} value={payroll} onChange={e=>setPayroll(fmtInput(e.target.value))} placeholder="e.g., 100,000"/></Field>}
+
+        {scope==="subcontracted"&&(
+          <>
+            <div style={{background:"#fff3cd",borderLeft:"4px solid #ffc107",borderRadius:6,padding:"9px 12px",marginBottom:12,fontSize:13}}>
+              <strong>WC = $0</strong> — The subcontractor carries their own coverage. They must complete their own WRAP enrollment. If the wrap program sponsor is not yet aware of the sub, we are required to notify them.
+            </div>
+            <Field label="Subcontractor Company Name" hint="Required for WRAP enrollment notification">
+              <input style={inp} value={subName} onChange={e=>setSubName(e.target.value)} placeholder="e.g., ABC Install Services LLC"/>
+            </Field>
+            <Field label="Subcontractor Contact Name">
+              <input style={inp} value={subContact} onChange={e=>setSubContact(e.target.value)} placeholder="e.g., John Smith"/>
+            </Field>
+            <Field label="Subcontractor Contact Email">
+              <input style={inp} type="email" value={subEmail} onChange={e=>setSubEmail(e.target.value)} placeholder="e.g., jsmith@abcinstall.com"/>
+            </Field>
+          </>
+        )}
+        {noRates&&<InfoBox warn><strong>No WC rates on file for {state}.</strong> Contact wrap.enrollment@myfbm.com if self-install work is performed here.</InfoBox>}
+      </Card>
+
+      {hasRates&&(
+        <Card title={`Rate Breakdown — ${state}`} accent="#27ae60">
+          {[["Base WC Rate ("+cc+")",baseRate.toFixed(3)+" per $100"],["EMR",emrVal.toFixed(2)],["LDF Credit",ldfVal>0?`${(ldfVal*100).toFixed(2)}%`:"N/A"],["Effective WC Rate",effRate.toFixed(4)+" per $100"]].map(([l,v],i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #f0f0f0",fontSize:13,color:i===3?"#27ae60":"#555",fontWeight:i===3?700:400}}><span>{l}</span><span>{v}</span></div>
+          ))}
+        </Card>
+      )}
+
+      <Card title="Deduction Results">
+        {[["Workers' Comp (WC)",fmtMoney(wc)],["General Liability (GL)",fmtMoney(gl)],["Umbrella / Excess",fmtMoney(umb)]].map(([l,v])=>(
+          <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid #f0f0f0",fontSize:14}}><span style={{color:"#555"}}>{l}</span><span style={{fontWeight:600}}>{v}</span></div>
+        ))}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0",fontSize:18,fontWeight:800,color:RED}}><span>Total Deduction</span><span>{fmtMoney(total)}</span></div>
+      </Card>
+
+      <Card title="Email This Calculation">
+        <Field label="Who should receive this calculation?" hint="Enter any email address — your PM, the GC, or yourself.">
+          <input style={inp} type="email" value={recipientEmail} onChange={e=>setRecipientEmail(e.target.value)} placeholder="e.g., pm@company.com"/>
+        </Field>
+        <div style={{fontSize:12,color:"#888",marginBottom:12}}>The email will include the full results and a step-by-step breakdown of how each number was calculated.</div>
+        <a href={buildMailto()} style={{display:"block",textAlign:"center",background:recipientEmail?"#27ae60":"#aaa",color:"white",padding:"13px",borderRadius:8,textDecoration:"none",fontWeight:700,fontSize:15,pointerEvents:recipientEmail?"auto":"none"}}>
+          📧 Email Calculation
+        </a>
+        {!recipientEmail&&<div style={{fontSize:11,color:"#f39c12",marginTop:6,textAlign:"center"}}>Enter a recipient email above to enable.</div>}
+      </Card>
+    </div>
+  );
+}
+
+// ── BOND REQUEST ───────────────────────────────────────────────────
+function BondRequest(){
+  const [f,setF]=useState({reqName:"",reqEmail:"",reqBranch:"",bondType:"",bondAmt:"",otherType:"",bidDate:"",maintPeriod:"",principal:"",principalOther:"",obligee:"",obligeeAddr:"",projName:"",projAddr:"",projState:"",contractAmt:"",scope:"",notes:"",urgency:"normal"});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const [errors,setErrors]=useState([]);
+  const [preview,setPreview]=useState(null);
+  const btLabel=f.bondType==="other"?f.otherType:(BOND_TYPES.find(b=>b.v===f.bondType)?.l||"");
+  const pLabel=f.principal==="UDHG"?"Unified Door and Hardware Group (UDHG)":f.principal==="FBM"?"Foundation Building Materials (FBM)":f.principalOther;
+  const validate=()=>{const m=[];if(!f.reqName)m.push("Your Name");if(!f.reqEmail)m.push("Your Email");if(!f.bondType)m.push("Bond Type");if(!f.bondAmt)m.push("Bond Amount");if(!f.principal)m.push("Principal");if(!f.obligee)m.push("Obligee Name");if(!f.projName)m.push("Project Name");if(!f.contractAmt)m.push("Contract Amount");if(f.bondType==="bid"&&!f.bidDate)m.push("Bid Due Date");if(f.bondType==="other"&&!f.otherType)m.push("Specify Bond Type");return m;};
+  const generate=()=>{const errs=validate();setErrors(errs);if(errs.length>0)return;const urgPfx=f.urgency==="rush"?"RUSH ":f.urgency==="urgent"?"URGENT ":"";const subj=`${urgPfx}Bond Request — ${btLabel} — ${f.projName}`;let body=`Hi,\n\nRequesting a ${btLabel.toLowerCase()} for the project below.\n\nREQUESTOR\n- Name: ${f.reqName}\n- Email: ${f.reqEmail}`;if(f.reqBranch)body+=`\n- Branch: ${f.reqBranch}`;body+=`\n\nBOND DETAILS\n- Bond Type: ${btLabel}\n- Bond Amount: $${parseNum(f.bondAmt).toLocaleString()}`;if(f.bondType==="bid"&&f.bidDate)body+=`\n- Bid Due Date: ${f.bidDate}`;if(f.bondType==="maintenance"&&f.maintPeriod)body+=`\n- Maintenance Period: ${f.maintPeriod}`;if(f.urgency!=="normal")body+=`\n- Urgency: ${f.urgency==="rush"?"Rush (2-3 biz days)":"Urgent (24-48 hrs)"}`;body+=`\n\nPRINCIPAL\n- Entity: ${pLabel}\n\nOBLIGEE\n- Name: ${f.obligee}`;if(f.obligeeAddr)body+=`\n- Address: ${f.obligeeAddr}`;body+=`\n\nPROJECT\n- Name: ${f.projName}\n- Contract Amount: $${parseNum(f.contractAmt).toLocaleString()}`;if(f.projAddr)body+=`\n- Address: ${f.projAddr}`;if(f.projState)body+=`\n- State: ${f.projState}`;if(f.scope)body+=`\n- Scope: ${f.scope}`;if(f.notes)body+=`\n\nNOTES\n${f.notes}`;body+=`\n\nThanks,\n${f.reqName}`;setPreview({subj,body});};
+  const mailto=preview?`mailto:auri.derer@udhgroup.com?subject=${encodeURIComponent(preview.subj)}&body=${encodeURIComponent(preview.body)}`:"#";
+
+  if(preview) return(
+    <div style={{padding:14}}>
+      <button onClick={()=>setPreview(null)} style={{background:"#666",color:"white",border:"none",borderRadius:6,padding:"8px 16px",marginBottom:12,cursor:"pointer",fontSize:13}}>← Edit</button>
+      <Card title="Email Preview">
+        <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>{preview.subj}</div>
+        <pre style={{background:"#f8f9fa",border:"1px solid #e0e0e0",borderRadius:6,padding:12,fontSize:12,whiteSpace:"pre-wrap",fontFamily:"monospace",maxHeight:320,overflowY:"auto"}}>{preview.body}</pre>
+        <a href={mailto} style={{display:"block",textAlign:"center",background:"#27ae60",color:"white",padding:"12px",borderRadius:8,textDecoration:"none",fontWeight:700,marginTop:12,fontSize:15}}>📧 Open in Email Client</a>
+        <InfoBox success style={{marginTop:12}}><strong>Reminder:</strong> Attach any required bond form before sending.</InfoBox>
+      </Card>
+    </div>
+  );
+
+  return(
+    <div style={{padding:14}}>
+      <Card title="Requestor">
+        <Field label="Your Name *"><input style={inp} value={f.reqName} onChange={e=>set("reqName",e.target.value)}/></Field>
+        <Field label="Your Email *"><input style={inp} type="email" value={f.reqEmail} onChange={e=>set("reqEmail",e.target.value)}/></Field>
+        <Field label="Branch / DBA"><input style={inp} value={f.reqBranch} onChange={e=>set("reqBranch",e.target.value)} placeholder="e.g., UDHG Phoenix"/></Field>
+      </Card>
+      <Card title="Bond Details">
+        <Field label="Bond Type *"><select style={inp} value={f.bondType} onChange={e=>set("bondType",e.target.value)}><option value="">Select...</option>{BOND_TYPES.map(b=><option key={b.v} value={b.v}>{b.l}</option>)}</select></Field>
+        {f.bondType==="other"&&<Field label="Specify Type *"><input style={inp} value={f.otherType} onChange={e=>set("otherType",e.target.value)}/></Field>}
+        <Field label="Bond Amount ($) *"><input style={inp} value={f.bondAmt} onChange={e=>set("bondAmt",fmtInput(e.target.value))} placeholder="e.g., 500,000"/></Field>
+        {f.bondType==="bid"&&<Field label="Bid Due Date *"><input style={inp} type="date" value={f.bidDate} onChange={e=>set("bidDate",e.target.value)}/></Field>}
+        {f.bondType==="maintenance"&&<Field label="Maintenance Period"><input style={inp} value={f.maintPeriod} onChange={e=>set("maintPeriod",e.target.value)} placeholder="e.g., 2 years from substantial completion"/></Field>}
+        <Field label="Urgency"><select style={inp} value={f.urgency} onChange={e=>set("urgency",e.target.value)}><option value="normal">Normal (5–7 business days)</option><option value="rush">Rush (2–3 business days)</option><option value="urgent">Urgent (24–48 hours)</option></select></Field>
+      </Card>
+      <Card title="Principal">
+        <Field label="Principal Entity *"><select style={inp} value={f.principal} onChange={e=>set("principal",e.target.value)}><option value="">Select...</option>{PRINCIPALS.map(p=><option key={p.v} value={p.v}>{p.l}</option>)}</select></Field>
+        {f.principal==="other"&&<Field label="Specify Entity"><input style={inp} value={f.principalOther} onChange={e=>set("principalOther",e.target.value)}/></Field>}
+      </Card>
+      <Card title="Obligee">
+        <Field label="Obligee Name *" hint="Full legal name of the party requiring the bond"><input style={inp} value={f.obligee} onChange={e=>set("obligee",e.target.value)}/></Field>
+        <Field label="Obligee Address"><textarea style={{...inp,minHeight:65,resize:"vertical"}} value={f.obligeeAddr} onChange={e=>set("obligeeAddr",e.target.value)}/></Field>
+      </Card>
+      <Card title="Project">
+        <Field label="Project Name *"><input style={inp} value={f.projName} onChange={e=>set("projName",e.target.value)}/></Field>
+        <Field label="Contract Amount ($) *"><input style={inp} value={f.contractAmt} onChange={e=>set("contractAmt",fmtInput(e.target.value))} placeholder="e.g., 1,200,000"/></Field>
+        <Field label="Project Address"><input style={inp} value={f.projAddr} onChange={e=>set("projAddr",e.target.value)}/></Field>
+        <Field label="Project State"><select style={inp} value={f.projState} onChange={e=>set("projState",e.target.value)}><option value="">Select...</option>{STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></Field>
+        <Field label="Scope of Work"><textarea style={{...inp,minHeight:65,resize:"vertical"}} value={f.scope} onChange={e=>set("scope",e.target.value)} placeholder="Supply and installation of commercial doors, frames, and hardware"/></Field>
+        <Field label="Additional Notes"><textarea style={{...inp,minHeight:65,resize:"vertical"}} value={f.notes} onChange={e=>set("notes",e.target.value)}/></Field>
+      </Card>
+      {errors.length>0&&<div style={{background:"#f8d7da",borderLeft:"4px solid #dc3545",borderRadius:6,padding:"10px 12px",marginBottom:12,fontSize:13}}><strong>Missing:</strong> {errors.join(", ")}</div>}
+      <button onClick={generate} style={{display:"block",width:"100%",background:RED,color:"white",border:"none",borderRadius:8,padding:"13px",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>Preview Bond Request Email</button>
+    </div>
+  );
+}
+
+// ── PROGRAMS TRACKER ───────────────────────────────────────────────
+function Tracker(){
+  const [programs,setPrograms]=useState(SAMPLE_PROGRAMS);
+  const [detail,setDetail]=useState(null);
+  const [showAdd,setShowAdd]=useState(false);
+  const [n,setN]=useState({name:"",type:"OCIP",status:"pending",cv:"",compliance:"",due:"",contact:""});
+  const sn=(k,v)=>setN(p=>({...p,[k]:v}));
+  const today=new Date();
+  const totalSavings=programs.reduce((s,p)=>s+p.savings,0);
+  const avgC=programs.length?Math.round(programs.reduce((s,p)=>s+p.compliance,0)/programs.length):0;
+  const alerts=programs.filter(p=>p.compliance<60||(p.due&&new Date(p.due)<=new Date(today.getTime()+7*86400000)&&new Date(p.due)>=today));
+  const addProgram=()=>{if(!n.name||!n.cv)return;const cvv=parseNum(n.cv),comp=parseInt(n.compliance)||50;setPrograms(ps=>[...ps,{id:`WU-${Date.now()}`,name:n.name,type:n.type,status:n.status,compliance:comp,cv:cvv,savings:Math.round(cvv*0.038),due:n.due,contact:n.contact}]);setN({name:"",type:"OCIP",status:"pending",cv:"",compliance:"",due:"",contact:""});setShowAdd(false);};
+  const deleteProgram=(id)=>{setPrograms(ps=>ps.filter(p=>p.id!==id));setDetail(null);};
+
+  if(detail){
+    const p=programs.find(x=>x.id===detail);
+    if(!p){setDetail(null);return null;}
+    const isAlert=p.compliance<60||(p.due&&new Date(p.due)<=new Date(today.getTime()+7*86400000));
+    return(
+      <div style={{padding:14}}>
+        <button onClick={()=>setDetail(null)} style={{background:"#666",color:"white",border:"none",borderRadius:6,padding:"8px 16px",marginBottom:12,cursor:"pointer",fontSize:13}}>← Back</button>
+        <Card title={p.name}>
+          {isAlert&&<div style={{background:"#f8d7da",borderLeft:"4px solid #dc3545",borderRadius:6,padding:"9px 12px",marginBottom:12,fontSize:13}}>🚨 This program needs attention</div>}
+          {[["Program ID",p.id],["Type",p.type],["Status",p.status.charAt(0).toUpperCase()+p.status.slice(1)],["Contact",p.contact||"—"],["Contract Value","$"+p.cv.toLocaleString()],["Estimated Savings","$"+p.savings.toLocaleString()],["Next Payroll Due",p.due||"—"]].map(([l,v])=>(
+            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #f0f0f0",fontSize:14}}><span style={{color:"#666"}}>{l}</span><span style={{fontWeight:600}}>{v}</span></div>
+          ))}
+          <div style={{padding:"12px 0"}}>
+            <div style={{fontSize:13,color:"#666",marginBottom:6}}>Compliance Score</div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{flex:1,height:12,background:"#eee",borderRadius:6,overflow:"hidden"}}><div style={{width:`${p.compliance}%`,height:"100%",background:compColor(p.compliance)}}/></div>
+              <span style={{fontWeight:800,fontSize:16,color:compColor(p.compliance),minWidth:42}}>{p.compliance}%</span>
+            </div>
+          </div>
+          <button onClick={()=>deleteProgram(p.id)} style={{marginTop:8,width:"100%",background:"#dc3545",color:"white",border:"none",borderRadius:6,padding:"10px",cursor:"pointer",fontSize:13,fontWeight:600}}>Remove Program</button>
+        </Card>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{padding:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+        {[[programs.length,"Programs",RED],[`$${(totalSavings/1000).toFixed(0)}K`,"Savings","#27ae60"],[`${avgC}%`,"Avg Compliance","#f39c12"]].map(([v,l,c])=>(
+          <div key={l} style={{background:"white",borderRadius:8,padding:"11px 6px",textAlign:"center",boxShadow:"0 2px 6px rgba(0,0,0,0.07)",borderTop:`3px solid ${c}`}}>
+            <div style={{fontSize:17,fontWeight:800,color:c}}>{v}</div>
+            <div style={{fontSize:10,color:"#888",textTransform:"uppercase",letterSpacing:.5,marginTop:2,lineHeight:1.3}}>{l}</div>
+          </div>
+        ))}
+      </div>
+      {alerts.length>0&&(
+        <div style={{background:"#f8d7da",border:"1px solid #f1aeb5",borderRadius:8,padding:12,marginBottom:12}}>
+          <div style={{fontWeight:700,color:"#842029",marginBottom:6,fontSize:13}}>🚨 {alerts.length} Alert{alerts.length>1?"s":""}</div>
+          {alerts.map(a=>(
+            <div key={a.id} style={{fontSize:12,color:"#842029",padding:"2px 0"}}>
+              {a.compliance<60?`📋 ${a.name}: ${a.compliance}% compliance`:`⏰ ${a.name}: payroll due ${a.due}`}
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <div style={{fontWeight:700,fontSize:14,color:RED}}>Programs ({programs.length})</div>
+        <button onClick={()=>setShowAdd(!showAdd)} style={{background:showAdd?"#666":RED,color:"white",border:"none",borderRadius:6,padding:"6px 14px",cursor:"pointer",fontSize:13,fontWeight:600}}>{showAdd?"✕ Cancel":"+ Add"}</button>
+      </div>
+      {showAdd&&(
+        <Card title="New Program" accent="#27ae60">
+          <Field label="Project Name *"><input style={inp} value={n.name} onChange={e=>sn("name",e.target.value)}/></Field>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Field label="Type"><select style={inp} value={n.type} onChange={e=>sn("type",e.target.value)}><option>OCIP</option><option>CCIP</option></select></Field>
+            <Field label="Status"><select style={inp} value={n.status} onChange={e=>sn("status",e.target.value)}><option value="pending">Pending</option><option value="enrolled">Enrolled</option><option value="active">Active</option></select></Field>
+          </div>
+          <Field label="Contract Value ($) *"><input style={inp} value={n.cv} onChange={e=>sn("cv",fmtInput(e.target.value))}/></Field>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Field label="Compliance (0-100)"><input style={inp} type="number" min="0" max="100" value={n.compliance} onChange={e=>sn("compliance",e.target.value)}/></Field>
+            <Field label="Next Payroll Due"><input style={inp} type="date" value={n.due} onChange={e=>sn("due",e.target.value)}/></Field>
+          </div>
+          <Field label="Contact Name"><input style={inp} value={n.contact} onChange={e=>sn("contact",e.target.value)}/></Field>
+          <button onClick={addProgram} style={{width:"100%",background:"#27ae60",color:"white",border:"none",borderRadius:6,padding:"10px",cursor:"pointer",fontWeight:700,marginTop:6}}>Add Program</button>
+        </Card>
+      )}
+      {programs.map(p=>(
+        <div key={p.id} onClick={()=>setDetail(p.id)} style={{background:"white",borderRadius:8,padding:13,marginBottom:10,boxShadow:"0 2px 7px rgba(0,0,0,0.08)",cursor:"pointer",borderLeft:`4px solid ${compColor(p.compliance)}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:5}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#1a1a1a",flex:1,lineHeight:1.3,paddingRight:8}}>{p.name}</div>
+            <Tag label={p.type}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#999",marginBottom:7}}>
+            <span style={{textTransform:"capitalize"}}>{p.status}</span>
+            <span>${(p.cv/1000000).toFixed(2)}M contract</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:p.due?5:0}}>
+            <div style={{flex:1,height:6,background:"#eee",borderRadius:3,overflow:"hidden"}}><div style={{width:`${p.compliance}%`,height:"100%",background:compColor(p.compliance)}}/></div>
+            <span style={{fontSize:12,fontWeight:700,color:compColor(p.compliance),minWidth:36}}>{p.compliance}%</span>
+          </div>
+          {p.due&&<div style={{fontSize:12,color:"#888"}}>📅 Payroll due: {p.due}</div>}
+        </div>
+      ))}
+      <div style={{textAlign:"center",padding:"14px 0",color:"#ccc",fontSize:11}}>Data is session-only. Nothing leaves this device.</div>
+    </div>
+  );
+}
+
+// ── APP SHELL ──────────────────────────────────────────────────────
+const TABS=[{id:"calc",label:"Calculator",icon:"📊"},{id:"bond",label:"Bond",icon:"📄"},{id:"tracker",label:"Programs",icon:"📋"}];
+
+function App(){
+  const [tab,setTab]=useState("calc");
+  const [unlocked,setUnlocked]=useState(false);
+  if(!unlocked) return <Lock onUnlock={()=>setUnlocked(true)}/>;
+  return(
+    <div style={{maxWidth:480,margin:"0 auto",minHeight:"100vh",background:"#f2f2f7",position:"relative"}}>
+      <div style={{background:RED,color:"white",padding:"14px 18px",position:"sticky",top:0,zIndex:10,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
+        <div style={{fontWeight:800,fontSize:14,letterSpacing:.8}}>UNIFIED DOOR & HARDWARE GROUP</div>
+        <div style={{fontSize:11,opacity:.8,marginTop:2}}>Risk Management — Internal Use Only</div>
+      </div>
+      <div style={{paddingBottom:72}}>
+        {tab==="calc"&&<Calculator/>}
+        {tab==="bond"&&<BondRequest/>}
+        {tab==="tracker"&&<Tracker/>}
+      </div>
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"white",borderTop:"1px solid #e0e0e0",display:"flex",zIndex:20,boxShadow:"0 -2px 10px rgba(0,0,0,0.08)"}}>
+        {TABS.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 0 8px",background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,color:tab===t.id?RED:"#aaa",borderTop:tab===t.id?`2px solid ${RED}`:"2px solid transparent"}}>
+            <span style={{fontSize:20}}>{t.icon}</span>
+            <span style={{fontSize:10,fontWeight:tab===t.id?700:400,letterSpacing:.3}}>{t.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+<script>
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
+  }
+</script>
+</body>
+</html>
