@@ -21,14 +21,18 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script type="text/babel">
-const {useState,useEffect}=React;
+const {useState,useEffect,useRef,useCallback}=React;
 const RED="#8B2332";
 
-const WC_RATES={AZ:{5102:3.31},CO:{5102:3.29},CT:{5102:4.61},FL:{5102:5.33},ME:{5102:2.78},MA:{5102:4.56},MD:{5102:4.09},MI:{5102:2.13,5146:2.14},NJ:{5103:6.28},NY:{5102:11.17},PA:{658:6.43},RI:{5102:3.54},TN:{5102:2.58,5146:1.91},TX:{5102:2.15}};
-const WC_SUPPLY={CT:3.48,MA:2.76,ME:3.04,RI:3.82};
-const LDF={AL:0.0706,AR:0.2214,AZ:0.2737,CA:0.0832,CO:0.0549,CT:0.0832,FL:0.2124,GA:0.054,HI:0.202,IA:0.2561,ID:0.0549,IL:0.0521,IN:0.0548,KS:0.0545,KY:0.0832,LA:0.0506,MA:0,MD:0.0548,ME:0,MI:0.0833,MN:0.2094,MO:0.0832,MS:0.0835,MT:0.0832,NC:0.2541,NE:0.1386,NH:0.0831,NJ:0.0829,NM:0.0832,NV:0.0548,NY:0.0832,OK:0.0832,OR:0.1658,PA:0.1931,RI:0.0548,SC:0.0832,SD:0.0832,TN:0.0832,TX:0.08,UT:0.0548,VA:0.0832,WV:0.052};
-const EMR={AL:0.95,AR:0.95,AZ:0.95,CA:0.95,CO:0.95,CT:0.95,FL:0.95,GA:0.95,HI:0.95,IA:0.95,ID:0.95,IL:0.95,IN:0.95,KS:0.95,KY:0.95,LA:0.95,MA:1.01,MD:0.95,ME:0.95,MI:0.65,MN:0.95,MO:0.95,MS:0.95,MT:0.95,NC:0.95,NE:0.95,NH:0.95,NJ:1.115,NM:0.95,NV:0.95,NY:1.87,OK:0.95,OR:0.95,PA:1.143,RI:0.95,SC:0.95,SD:0.95,TN:0.95,TX:0.95,UT:0.95,VA:0.95,WV:0.95};
+// Configure pdf.js worker
+if(window.pdfjsLib){window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";}
+
+const DEFAULT_WC_RATES={AZ:{5102:3.31},CO:{5102:3.29},CT:{5102:4.61},FL:{5102:5.33},ME:{5102:2.78},MA:{5102:4.56},MD:{5102:4.09},MI:{5102:2.13,5146:2.14},NJ:{5103:6.28},NY:{5102:11.17},PA:{658:6.43},RI:{5102:3.54},TN:{5102:2.58,5146:1.91},TX:{5102:2.15}};
+const DEFAULT_WC_SUPPLY={CT:3.48,MA:2.76,ME:3.04,RI:3.82};
+const DEFAULT_LDF={AL:0.0706,AR:0.2214,AZ:0.2737,CA:0.0832,CO:0.0549,CT:0.0832,FL:0.2124,GA:0.054,HI:0.202,IA:0.2561,ID:0.0549,IL:0.0521,IN:0.0548,KS:0.0545,KY:0.0832,LA:0.0506,MA:0,MD:0.0548,ME:0,MI:0.0833,MN:0.2094,MO:0.0832,MS:0.0835,MT:0.0832,NC:0.2541,NE:0.1386,NH:0.0831,NJ:0.0829,NM:0.0832,NV:0.0548,NY:0.0832,OK:0.0832,OR:0.1658,PA:0.1931,RI:0.0548,SC:0.0832,SD:0.0832,TN:0.0832,TX:0.08,UT:0.0548,VA:0.0832,WV:0.052};
+const DEFAULT_EMR={AL:0.95,AR:0.95,AZ:0.95,CA:0.95,CO:0.95,CT:0.95,FL:0.95,GA:0.95,HI:0.95,IA:0.95,ID:0.95,IL:0.95,IN:0.95,KS:0.95,KY:0.95,LA:0.95,MA:1.01,MD:0.95,ME:0.95,MI:0.65,MN:0.95,MO:0.95,MS:0.95,MT:0.95,NC:0.95,NE:0.95,NH:0.95,NJ:1.115,NM:0.95,NV:0.95,NY:1.87,OK:0.95,OR:0.95,PA:1.143,RI:0.95,SC:0.95,SD:0.95,TN:0.95,TX:0.95,UT:0.95,VA:0.95,WV:0.95};
 const CC_LABELS={5102:"Installation",5103:"Installation",5146:"Furniture Install",658:"Metal Erection Install",8235:"Supply Only"};
 const GL_RATE=0.1506, UMB_RATE=0.36691;
 
@@ -125,7 +129,7 @@ function Lock({onUnlock}){
 }
 
 // ── CALCULATOR ─────────────────────────────────────────────────────
-function Calculator(){
+function Calculator({WC_RATES,WC_SUPPLY,LDF,EMR}){
   const [state,setState]=useState("");
   const [cv,setCv]=useState("");
   const [scope,setScope]=useState("none");
@@ -472,12 +476,253 @@ function Tracker(){
   );
 }
 
+// ── PDF RATE EXTRACTION ───────────────────────────────────────────
+async function extractPdfText(file){
+  const buf=await file.arrayBuffer();
+  const pdf=await window.pdfjsLib.getDocument({data:buf}).promise;
+  let fullText="";
+  const pages=[];
+  for(let i=1;i<=Math.min(pdf.numPages,10);i++){
+    const page=await pdf.getPage(i);
+    const content=await page.getTextContent();
+    const items=content.items.map(it=>({text:it.str,x:it.transform[4],y:it.transform[5]}));
+    const text=content.items.map(it=>it.str).join(" ");
+    fullText+=text+"\n";
+    pages.push({pageNum:i,items,text});
+  }
+  return {fullText,pages,numPages:pdf.numPages};
+}
+
+function parsePdfRates(fullText){
+  const result={state:null,rates:[],emr:null,ldf:null,warnings:[]};
+  const statePattern=new RegExp("\\b("+STATES.join("|")+")\\b","g");
+  const stateMatches=[...fullText.matchAll(statePattern)].map(m=>m[1]);
+  if(stateMatches.length>0){
+    const freq={};stateMatches.forEach(s=>{freq[s]=(freq[s]||0)+1;});
+    result.state=Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0];
+  } else {result.warnings.push("Could not detect state — please select manually.");}
+
+  const ratePattern=/\b(\d{3,5})\s+[\w\s\/&,.-]{2,60}?\s+(\d{1,3}\.\d{2,4})\b/g;
+  const seen=new Set();
+  for(const m of fullText.matchAll(ratePattern)){
+    const code=m[1],rate=parseFloat(m[2]);
+    if(rate>=0.10&&rate<=25.0&&!seen.has(code)){
+      seen.add(code);
+      const label=CC_LABELS[code]||"Unknown";
+      const confidence=(code==="5102"||code==="5103"||code==="5146"||code==="658"||code==="8235")?"high":"medium";
+      result.rates.push({classCode:code,rate,label,confidence});
+    }
+  }
+
+  const emrMatch=fullText.match(/(?:experience\s+mod(?:ification)?(?:\s+(?:rate|factor))?|EMR)\s*[:=]?\s*(\d+\.?\d*)/i);
+  if(emrMatch)result.emr=parseFloat(emrMatch[1]);
+
+  const ldfMatch=fullText.match(/(?:loss\s+dev(?:elopment)?\s+factor|LDF)\s*[:=]?\s*(\d+\.?\d*%?)/i);
+  if(ldfMatch){
+    let v=parseFloat(ldfMatch[1]);
+    if(ldfMatch[1].includes("%"))v=v/100;
+    if(v>=0&&v<1)result.ldf=v;
+  }
+
+  if(result.rates.length===0)result.warnings.push("No class code / rate pairs found. The PDF may be scanned or in an unexpected format.");
+  return result;
+}
+
+// ── RATE MANAGER ──────────────────────────────────────────────────
+function RateManager({WC_RATES,WC_SUPPLY,LDF,EMR,onUpdateRates}){
+  const [status,setStatus]=useState("idle");
+  const [parsed,setParsed]=useState(null);
+  const [selectedState,setSelectedState]=useState("");
+  const [selected,setSelected]=useState({});
+  const [applyEmr,setApplyEmr]=useState(true);
+  const [applyLdf,setApplyLdf]=useState(true);
+  const [applied,setApplied]=useState(null);
+  const [showCurrent,setShowCurrent]=useState(false);
+  const [dragging,setDragging]=useState(false);
+  const fileRef=useRef();
+
+  const handleFile=async(file)=>{
+    if(!file||!file.type.includes("pdf")){setStatus("error");setParsed({warnings:["Please upload a PDF file."],rates:[]});return;}
+    if(!window.pdfjsLib){setStatus("error");setParsed({warnings:["PDF.js library failed to load. Please refresh the page."],rates:[]});return;}
+    setStatus("extracting");setApplied(null);
+    try{
+      const{fullText}=await extractPdfText(file);
+      const result=parsePdfRates(fullText);
+      setParsed(result);
+      setSelectedState(result.state||"");
+      const sel={};result.rates.forEach((_,i)=>{sel[i]=true;});setSelected(sel);
+      setApplyEmr(!!result.emr);setApplyLdf(!!result.ldf);
+      setStatus("preview");
+    }catch(e){
+      setStatus("error");setParsed({warnings:["Failed to read PDF: "+e.message],rates:[]});
+    }
+  };
+
+  const onDrop=useCallback((e)=>{e.preventDefault();setDragging(false);const f=e.dataTransfer.files[0];if(f)handleFile(f);},[]);
+  const onDragOver=useCallback((e)=>{e.preventDefault();setDragging(true);},[]);
+  const onDragLeave=useCallback(()=>setDragging(false),[]);
+
+  const applyRates=()=>{
+    if(!selectedState){return;}
+    const newWC={...WC_RATES};
+    const newSupply={...WC_SUPPLY};
+    const newLdf={...LDF};
+    const newEmr={...EMR};
+    const appliedItems=[];
+
+    const stateRates={...(newWC[selectedState]||{})};
+    parsed.rates.forEach((r,i)=>{
+      if(!selected[i])return;
+      if(r.classCode==="8235"){newSupply[selectedState]=r.rate;}
+      else{stateRates[r.classCode]=r.rate;}
+      appliedItems.push(`${r.classCode}: ${r.rate}`);
+    });
+    newWC[selectedState]=stateRates;
+
+    if(applyEmr&&parsed.emr){newEmr[selectedState]=parsed.emr;appliedItems.push(`EMR: ${parsed.emr}`);}
+    if(applyLdf&&parsed.ldf!==null){newLdf[selectedState]=parsed.ldf;appliedItems.push(`LDF: ${parsed.ldf}`);}
+
+    onUpdateRates({wcRates:newWC,wcSupply:newSupply,ldf:newLdf,emr:newEmr});
+    setApplied({state:selectedState,items:appliedItems});
+    setStatus("idle");setParsed(null);
+  };
+
+  const resetDefaults=()=>{
+    onUpdateRates({wcRates:DEFAULT_WC_RATES,wcSupply:DEFAULT_WC_SUPPLY,ldf:DEFAULT_LDF,emr:DEFAULT_EMR});
+    setApplied({state:"ALL",items:["Reset to built-in default rates"]});
+  };
+
+  return(
+    <div style={{padding:14}}>
+      <InfoBox><strong>Upload Rate Pages.</strong> Drop a PDF of your WC rate endorsement and the rates will be extracted and applied to the calculator. Session-only — nothing is stored.</InfoBox>
+
+      {/* Drop Zone */}
+      <Card title="Upload Rate Page PDF">
+        <div
+          onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
+          onClick={()=>fileRef.current&&fileRef.current.click()}
+          style={{border:`2px dashed ${dragging?"#27ae60":"#ccc"}`,borderRadius:10,padding:"32px 16px",textAlign:"center",cursor:"pointer",background:dragging?"#e8f8e8":"#fafafa",transition:"all 0.2s"}}
+        >
+          <div style={{fontSize:36,marginBottom:8}}>📄</div>
+          <div style={{fontSize:14,fontWeight:600,color:"#555",marginBottom:4}}>
+            {status==="extracting"?"Extracting rates...":"Drop PDF here or tap to browse"}
+          </div>
+          <div style={{fontSize:12,color:"#999"}}>WC rate endorsement pages, rating sheets</div>
+          <input ref={fileRef} type="file" accept=".pdf" style={{display:"none"}} onChange={e=>{if(e.target.files[0])handleFile(e.target.files[0]);}}/>
+        </div>
+      </Card>
+
+      {/* Error / Warnings */}
+      {status==="error"&&parsed&&(
+        <Card title="Upload Issue" accent="#dc3545">
+          {parsed.warnings.map((w,i)=><div key={i} style={{fontSize:13,color:"#842029",marginBottom:4}}>{w}</div>)}
+          <button onClick={()=>{setStatus("idle");setParsed(null);}} style={{marginTop:8,background:"#666",color:"white",border:"none",borderRadius:6,padding:"8px 16px",cursor:"pointer",fontSize:13}}>Dismiss</button>
+        </Card>
+      )}
+
+      {/* Preview */}
+      {status==="preview"&&parsed&&(
+        <Card title="Extracted Rates" accent="#27ae60">
+          {parsed.warnings.length>0&&<InfoBox warn>{parsed.warnings.map((w,i)=><div key={i}>{w}</div>)}</InfoBox>}
+          <Field label="Apply to State">
+            <select style={inp} value={selectedState} onChange={e=>setSelectedState(e.target.value)}>
+              <option value="">Select State...</option>
+              {STATES.map(s=><option key={s} value={s}>{s}{s===parsed.state?" (detected)":""}</option>)}
+            </select>
+          </Field>
+
+          {parsed.rates.length>0&&(
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:6}}>Class Codes & Rates</div>
+              {parsed.rates.map((r,i)=>(
+                <label key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid #f0f0f0",fontSize:13,cursor:"pointer"}}>
+                  <input type="checkbox" checked={!!selected[i]} onChange={()=>setSelected(s=>({...s,[i]:!s[i]}))}/>
+                  <span style={{fontWeight:600,minWidth:45}}>{r.classCode}</span>
+                  <span style={{flex:1,color:"#666"}}>{r.label}</span>
+                  <span style={{fontWeight:700,color:"#27ae60"}}>{r.rate.toFixed(2)} / $100</span>
+                  <span style={{fontSize:10,color:r.confidence==="high"?"#27ae60":"#f39c12",fontWeight:600}}>{r.confidence==="high"?"HIGH":"MED"}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {parsed.emr&&(
+            <label style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid #f0f0f0",fontSize:13,cursor:"pointer"}}>
+              <input type="checkbox" checked={applyEmr} onChange={()=>setApplyEmr(v=>!v)}/>
+              <span style={{fontWeight:600}}>EMR</span>
+              <span style={{flex:1,color:"#666"}}>Experience Modification Rate</span>
+              <span style={{fontWeight:700,color:"#17a2b8"}}>{parsed.emr}</span>
+            </label>
+          )}
+          {parsed.ldf!==null&&parsed.ldf!==undefined&&(
+            <label style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid #f0f0f0",fontSize:13,cursor:"pointer"}}>
+              <input type="checkbox" checked={applyLdf} onChange={()=>setApplyLdf(v=>!v)}/>
+              <span style={{fontWeight:600}}>LDF</span>
+              <span style={{flex:1,color:"#666"}}>Loss Development Factor</span>
+              <span style={{fontWeight:700,color:"#17a2b8"}}>{(parsed.ldf*100).toFixed(2)}%</span>
+            </label>
+          )}
+
+          <div style={{display:"flex",gap:8,marginTop:14}}>
+            <button onClick={applyRates} disabled={!selectedState} style={{flex:1,background:selectedState?"#27ae60":"#aaa",color:"white",border:"none",borderRadius:8,padding:"12px",fontWeight:700,fontSize:14,cursor:selectedState?"pointer":"not-allowed"}}>
+              Apply to Calculator
+            </button>
+            <button onClick={()=>{setStatus("idle");setParsed(null);}} style={{background:"#666",color:"white",border:"none",borderRadius:8,padding:"12px 16px",cursor:"pointer",fontSize:13}}>Cancel</button>
+          </div>
+        </Card>
+      )}
+
+      {/* Applied confirmation */}
+      {applied&&(
+        <InfoBox success><strong>Rates updated for {applied.state}:</strong> {applied.items.join(", ")}. Switch to Calculator to use the new rates.</InfoBox>
+      )}
+
+      {/* Current Rates Viewer */}
+      <Card title="Current Rate Tables">
+        <button onClick={()=>setShowCurrent(v=>!v)} style={{background:"none",border:"none",color:"#17a2b8",fontSize:13,cursor:"pointer",padding:"4px 0",display:"flex",alignItems:"center",gap:5}}>
+          <span>{showCurrent?"▼":"▶"}</span> {showCurrent?"Hide":"View"} loaded rates
+        </button>
+        {showCurrent&&(
+          <div style={{marginTop:10}}>
+            {Object.keys(WC_RATES).sort().map(st=>(
+              <div key={st} style={{marginBottom:8}}>
+                <div style={{fontWeight:700,fontSize:12,color:RED}}>{st}</div>
+                {Object.entries(WC_RATES[st]).map(([code,rate])=>(
+                  <div key={code} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#555",padding:"2px 0 2px 12px"}}>
+                    <span>{code} — {CC_LABELS[code]||"Unknown"}</span><span>{rate.toFixed(2)}</span>
+                  </div>
+                ))}
+                {WC_SUPPLY[st]&&(
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#555",padding:"2px 0 2px 12px"}}>
+                    <span>8235 — Supply Only</span><span>{WC_SUPPLY[st].toFixed(2)}</span>
+                  </div>
+                )}
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#999",padding:"1px 0 1px 12px"}}>
+                  <span>EMR: {(EMR[st]||"—")}</span><span>LDF: {LDF[st]!==undefined?(LDF[st]*100).toFixed(2)+"%":"—"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <button onClick={resetDefaults} style={{marginTop:10,width:"100%",background:"#f8f9fa",color:"#666",border:"1px solid #ddd",borderRadius:6,padding:"8px",cursor:"pointer",fontSize:12,fontWeight:600}}>
+          Reset All to Default Rates
+        </button>
+      </Card>
+    </div>
+  );
+}
+
 // ── APP SHELL ──────────────────────────────────────────────────────
-const TABS=[{id:"calc",label:"Calculator",icon:"📊"},{id:"bond",label:"Bond",icon:"📄"},{id:"tracker",label:"Programs",icon:"📋"}];
+const TABS=[{id:"calc",label:"Calculator",icon:"📊"},{id:"bond",label:"Bond",icon:"📄"},{id:"tracker",label:"Programs",icon:"📋"},{id:"rates",label:"Rates",icon:"📑"}];
 
 function App(){
   const [tab,setTab]=useState("calc");
   const [unlocked,setUnlocked]=useState(false);
+  const [wcRates,setWcRates]=useState(DEFAULT_WC_RATES);
+  const [wcSupply,setWcSupply]=useState(DEFAULT_WC_SUPPLY);
+  const [ldf,setLdf]=useState(DEFAULT_LDF);
+  const [emr,setEmr]=useState(DEFAULT_EMR);
+  const handleUpdateRates=({wcRates:r,wcSupply:s,ldf:l,emr:e})=>{setWcRates(r);setWcSupply(s);setLdf(l);setEmr(e);};
   if(!unlocked) return <Lock onUnlock={()=>setUnlocked(true)}/>;
   return(
     <div style={{maxWidth:480,margin:"0 auto",minHeight:"100vh",background:"#f2f2f7",position:"relative"}}>
@@ -486,9 +731,10 @@ function App(){
         <div style={{fontSize:11,opacity:.8,marginTop:2}}>Risk Management — Internal Use Only</div>
       </div>
       <div style={{paddingBottom:72}}>
-        {tab==="calc"&&<Calculator/>}
+        {tab==="calc"&&<Calculator WC_RATES={wcRates} WC_SUPPLY={wcSupply} LDF={ldf} EMR={emr}/>}
         {tab==="bond"&&<BondRequest/>}
         {tab==="tracker"&&<Tracker/>}
+        {tab==="rates"&&<RateManager WC_RATES={wcRates} WC_SUPPLY={wcSupply} LDF={ldf} EMR={emr} onUpdateRates={handleUpdateRates}/>}
       </div>
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"white",borderTop:"1px solid #e0e0e0",display:"flex",zIndex:20,boxShadow:"0 -2px 10px rgba(0,0,0,0.08)"}}>
         {TABS.map(t=>(
